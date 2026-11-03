@@ -691,6 +691,28 @@ fn tail_stream() {
 
 #[test]
 #[serial]
+fn tail_empty_stream() {
+    let basin = ensure_test_basin("test-cli-data");
+    let stream = unique_name("test-data-tail-empty");
+    let uri = format!("s2://{basin}/{stream}");
+
+    s2().args(["create-stream", &uri]).assert().success();
+
+    s2().args(["tail", &uri])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty());
+
+    s2().args(["tail", &uri, "-n", "5"])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty());
+
+    cleanup_stream(&basin, &stream);
+}
+
+#[test]
+#[serial]
 fn read_with_tail_offset() {
     let basin = ensure_test_basin("test-cli-data");
     let stream = unique_name("test-data-offset");

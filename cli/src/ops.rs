@@ -8,6 +8,7 @@ use s2_api::v1::{
 use s2_sdk::{
     self as sdk, S2, S2Stream,
     batching::BatchingConfig,
+    error::{ReadError, ReadSessionError},
     producer::{IndexedAppendAck, ProducerConfig},
     read_session::ReadSession,
     types::{
@@ -708,13 +709,20 @@ pub async fn tail(
         ReadStop::new().with_limits(ReadLimits::new().with_count(args.lines as usize))
     };
 
-    let batches = stream
+    let batches = match stream
         .read_session(
             ReadInput::new().with_start(start).with_stop(stop),
             ReadSessionConfig::default(),
         )
         .await
-        .map_err(|e| CliError::op(OpKind::Tail, e))?;
+    {
+        Ok(batches) => batches,
+        // A bounded read can't start at the tail, which is where an empty stream clamps to.
+        Err(ReadSessionError::Read(ReadError::ReadUnwritten(_))) => {
+            return Ok(Box::pin(stream::empty()));
+        }
+        Err(e) => return Err(CliError::op(OpKind::Tail, e)),
+    };
 
     Ok(Box::pin(
         batches
